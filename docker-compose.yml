@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # 🐘
+  postgres:
+    image: postgres:16-alpine
+    container_name: aiqa_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: aiqa
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # 🔴
+  redis:
+    image: redis:7-alpine
+    container_name: aiqa_redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+
+  # ⚙️
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aiqa_backend
+    restart: always
+    ports:
+      - '8000:8000'
+    environment:
+      NODE_ENV: development
+      PORT: 8000
+
+      # PostgreSQL config
+      DATABASE_TYPE: postgres
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      DATABASE_NAME: aiqa
+
+      # Redis config
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      # API Keys / Config
+      SESSION_SECRET: ${SESSION_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      PINECONE_INDEX: ${PINECONE_INDEX}
+
+      # CORS
+      CORS_ORIGIN: ${CORS_ORIGIN}
+    volumes:
+      - backend-uploads:/app/uploads
+    depends_on:
+      - postgres
+      - redis
+    command: npm run dev
+
+  # 🖥️ Frontend (React/Vite)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: aiqa_frontend
+    restart: always
+    ports:
+      - '5173:5173'
+    environment:
+      VITE_API_URL: http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+    depends_on:
+      - backend
+
+volumes:
+  postgres-data:
+  redis-data:
+  backend-uploads:
